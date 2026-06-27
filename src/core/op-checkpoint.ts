@@ -191,7 +191,11 @@ export async function recordCompleted(
        ON CONFLICT (op, fingerprint) DO UPDATE
          SET completed_keys = EXCLUDED.completed_keys,
              updated_at     = now()`,
-      [key.op, key.fingerprint, JSON.stringify(sorted)],
+      // Fix B (fork): bind the RAW array, not JSON.stringify(sorted). postgres.js
+      // double-encodes a pre-stringified value into a jsonb STRING scalar, which
+      // violates the v119 CHECK (completed_keys must be a jsonb array) and aborts
+      // every sync. The raw array binds correctly under the $3::jsonb cast.
+      [key.op, key.fingerprint, sorted],
     ));
 }
 
