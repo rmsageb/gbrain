@@ -286,6 +286,14 @@ export interface OperationContext {
    */
   auth?: AuthInfo;
   /**
+   * Trusted-autolink marker (fork). Set ONLY by the local stdio MCP transport
+   * (`gbrain serve` via serve.sh) — the machine owner's own process. When
+   * `{ autolink: 'explicit' }`, put_page runs auto-link in explicit-only mode
+   * (author-written [[wikilinks]] + markdown links; no bare-slug-in-prose) even
+   * though `remote === true`. The network HTTP server never sets this.
+   */
+  trust?: { autolink?: 'explicit' };
+  /**
    * True when the caller is remote/untrusted (MCP over stdio/HTTP, or any agent-facing entry point).
    * False for local CLI invocations by the owner of the machine.
    *
@@ -947,14 +955,22 @@ const put_page: Operation = {
     const trustedWorkspace = ctx.viaSubagent === true
       && Array.isArray(ctx.allowedSlugPrefixes)
       && ctx.allowedSlugPrefixes.length > 0;
-    if (ctx.remote !== false && !trustedWorkspace) {
+    // Trusted-local stdio (fork): the owner's own `gbrain serve` process is
+    // trusted to auto-link, but in EXPLICIT-ONLY mode (author link syntax only,
+    // no bare-slug-in-prose) so agent-ingested untrusted text can't poison the
+    // graph. Set in src/mcp/server.ts; consumed by extractPageLinks opts.
+    const explicitAutolink = ctx.remote !== false && ctx.trust?.autolink === 'explicit';
+    if (ctx.remote !== false && !trustedWorkspace && !explicitAutolink) {
       autoLinks = { skipped: 'remote' };
       autoTimeline = { skipped: 'remote' };
     } else if (result.parsedPage) {
       try {
         const enabled = await isAutoLinkEnabled(ctx.engine);
         if (enabled) {
-          autoLinks = await runAutoLink(ctx.engine, slug, result.parsedPage, ctx.sourceId ? { sourceId: ctx.sourceId } : undefined);
+          autoLinks = await runAutoLink(ctx.engine, slug, result.parsedPage, {
+            ...(ctx.sourceId ? { sourceId: ctx.sourceId } : {}),
+            explicitOnly: explicitAutolink,
+          });
         }
       } catch (e) {
         autoLinks = { error: e instanceof Error ? e.message : String(e) };
@@ -1116,7 +1132,7 @@ async function runAutoLink(
   engine: BrainEngine,
   slug: string,
   parsed: { type: PageType; compiled_truth: string; timeline: string; frontmatter: Record<string, unknown> },
-  opts?: { sourceId?: string },
+  opts?: { sourceId?: string; explicitOnly?: boolean },
 ): Promise<{ created: number; removed: number; errors: number; unresolved: UnresolvedFrontmatterRef[] }> {
   const fullContent = parsed.compiled_truth + '\n' + parsed.timeline;
   // v0.31.8 (codex OV-2): thread sourceId through every read + write inside
@@ -1141,7 +1157,7 @@ async function runAutoLink(
   const globalBasename = await isGlobalBasenameEnabled(engine);
   const { candidates, unresolved } = await extractPageLinks(
     slug, fullContent, parsed.frontmatter, parsed.type, resolver,
-    { globalBasename },
+    { globalBasename, explicitOnly: opts?.explicitOnly },
   );
 
   // Resolve which targets exist (skip refs to non-existent pages to avoid FK
