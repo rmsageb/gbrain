@@ -468,7 +468,7 @@ export async function extractPageLinks(
   frontmatter: Record<string, unknown>,
   pageType: PageType,
   resolver: SlugResolver,
-  opts: { globalBasename?: boolean; skipFrontmatter?: boolean } = {},
+  opts: { globalBasename?: boolean; skipFrontmatter?: boolean; explicitOnly?: boolean } = {},
 ): Promise<PageLinksResult> {
   const candidates: LinkCandidate[] = [];
 
@@ -482,7 +482,11 @@ export async function extractPageLinks(
     // pre-v0.40.8.2 behavior of dropping bare wikilinks outside
     // DIR_PATTERN.
     if (ref.needsResolution) {
-      if (!opts.globalBasename || typeof resolver.resolveBasenameMatches !== 'function') {
+      // explicit-only mode (trusted-remote autolink, e.g. stdio MCP): generic
+      // `[[bare-name]]` refs need fuzzy basename resolution over arbitrary body
+      // text — skip them. Only DIR-qualified wikilinks + author-written markdown
+      // links survive in this mode.
+      if (opts.explicitOnly || !opts.globalBasename || typeof resolver.resolveBasenameMatches !== 'function') {
         continue;
       }
       // Issue #972 (codex): resolve by the wikilink TARGET (ref.slug — the
@@ -523,23 +527,33 @@ export async function extractPageLinks(
   // 2. Bare slug references (e.g. "see people/alice-chen for context").
   // Limited to the same entity directories ENTITY_REF_RE covers.
   // Code blocks are stripped first — slugs in code samples are not real refs.
-  const strippedContent = stripCodeBlocks(content);
-  const bareRe = new RegExp(
-    `\\b(${DIR_PATTERN}\\/[a-z0-9][a-z0-9/-]*[a-z0-9])\\b`,
-    'g',
-  );
-  let m: RegExpExecArray | null;
-  while ((m = bareRe.exec(strippedContent)) !== null) {
-    // Skip matches that are part of a markdown link (already handled above).
-    const charBefore = m.index > 0 ? strippedContent[m.index - 1] : '';
-    if (charBefore === '/' || charBefore === '(') continue;
-    const context = excerpt(strippedContent, m.index, 240);
-    candidates.push({
-      targetSlug: m[1],
-      linkType: inferLinkType(pageType, context, content, m[1]),
-      context,
-      linkSource: 'markdown',
-    });
+  //
+  // SECURITY (explicit-only mode): this pass matches a bare `dir/slug` token
+  // ANYWHERE in prose, so untrusted/ingested body text (pasted email, scraped
+  // page, agent output) can plant graph edges and — via hybridSearch's backlink
+  // boost — poison recall. Trusted-remote callers (stdio MCP) run with
+  // `explicitOnly` so only author-written link syntax ([[dir/slug]], [md](path))
+  // spawns edges; bare-slug-in-prose is skipped. Local CLI / trustedWorkspace
+  // run the full pass.
+  if (!opts.explicitOnly) {
+    const strippedContent = stripCodeBlocks(content);
+    const bareRe = new RegExp(
+      `\\b(${DIR_PATTERN}\\/[a-z0-9][a-z0-9/-]*[a-z0-9])\\b`,
+      'g',
+    );
+    let m: RegExpExecArray | null;
+    while ((m = bareRe.exec(strippedContent)) !== null) {
+      // Skip matches that are part of a markdown link (already handled above).
+      const charBefore = m.index > 0 ? strippedContent[m.index - 1] : '';
+      if (charBefore === '/' || charBefore === '(') continue;
+      const context = excerpt(strippedContent, m.index, 240);
+      candidates.push({
+        targetSlug: m[1],
+        linkType: inferLinkType(pageType, context, content, m[1]),
+        context,
+        linkSource: 'markdown',
+      });
+    }
   }
 
   // 3. Frontmatter-derived edges (v0.13). Includes the legacy `source:`

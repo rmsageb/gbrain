@@ -51,6 +51,14 @@ export async function startMcpServer(engine: BrainEngine) {
       // Code see the brain's relevant hot memory automatically alongside
       // every tool-call response. Best-effort; absorbs errors.
       metaHook: getBrainHotMemoryMeta,
+      // Trusted-autolink (fork): the stdio serve is the machine owner's own
+      // local process (launched from serve.sh, reads the 0600 connection.env),
+      // as trusted as the local CLI for authoring intent. Enable explicit-only
+      // auto-link (author-written [[wikilinks]] + markdown links; bare-slug-in-
+      // prose stays OFF as an injection guard) instead of skipping with
+      // { skipped: 'remote' }. The network HTTP server (serve-http.ts)
+      // deliberately does NOT set this — only the local pipe is trusted.
+      trust: { autolink: 'explicit' },
     });
   });
 
