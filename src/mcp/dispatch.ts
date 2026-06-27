@@ -70,6 +70,16 @@ export interface DispatchOpts {
    * was replaced by dispatchToolCall.
    */
   auth?: AuthInfo;
+  /**
+   * Trusted-autolink marker (fork). Set by the LOCAL stdio MCP transport
+   * (`gbrain serve`), which is the machine owner's own process reading the
+   * 0600 connection.env — as trusted as the local CLI for authoring intent,
+   * but distinct from the network HTTP server (which never sets this). When
+   * `{ autolink: 'explicit' }`, put_page runs auto-link in explicit-only mode
+   * (author-written [[wikilinks]] + markdown links only, no bare-slug-in-prose)
+   * instead of skipping with `{ skipped: 'remote' }`.
+   */
+  trust?: OperationContext['trust'];
 }
 
 /**
@@ -210,6 +220,7 @@ export function buildOperationContext(
     // this fallback covers code paths that historically passed undefined.
     sourceId: opts.sourceId ?? 'default',
     auth: opts.auth,
+    trust: opts.trust,
   };
 }
 
