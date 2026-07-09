@@ -43,6 +43,19 @@ describe('extractPageLinks — explicit-only mode (trusted-remote autolink)', ()
     expect(candidates.find(c => c.targetSlug === 'people/alice-chen')).toBeDefined();
   });
 
+  test('explicit-only KEEPS sagebeam taxonomy dirs person/ writing/ strategy/ (fork DIR_PATTERN)', async () => {
+    // Regression guard for the orphaned-contacts bug: `person/` (singular) is the
+    // real slug convention; without it in DIR_PATTERN these [[wikilinks]] drop.
+    const content =
+      'Intro path [[person/kurt-read]]; template [[writing/intro-blurbs]]; maps to [[strategy/outreach-icp/investor]].';
+    const { candidates } = await extractPageLinks(
+      'docs/x', content, {}, 'concept', nullResolver, { explicitOnly: true },
+    );
+    expect(candidates.find(c => c.targetSlug === 'person/kurt-read')).toBeDefined();
+    expect(candidates.find(c => c.targetSlug === 'writing/intro-blurbs')).toBeDefined();
+    expect(candidates.find(c => c.targetSlug === 'strategy/outreach-icp/investor')).toBeDefined();
+  });
+
   test('explicit-only KEEPS author-written [Name](dir/slug) markdown links', async () => {
     const content = 'Met with [Alice](people/alice-chen) today.';
     const { candidates } = await extractPageLinks(

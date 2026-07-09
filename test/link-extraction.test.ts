@@ -98,10 +98,13 @@ describe('extractEntityRefs', () => {
     expect(extractEntityRefs('[Alice(people/alice)')).toEqual([]);
   });
 
-  test('skips non-entity dirs (notes/, ideas/ stay if added later but are accepted now)', () => {
-    // Current regex targets entity dirs explicitly. Notes/ shouldn't match.
-    const refs = extractEntityRefs('See [random](notes/random).');
-    expect(refs).toEqual([]);
+  test('recognizes sagebeam taxonomy dirs (notes/) but still skips truly unknown dirs', () => {
+    // Fork: notes/ is a real Master Resolver taxonomy dir, so it IS extracted.
+    const notesRefs = extractEntityRefs('See [random](notes/random).');
+    expect(notesRefs.length).toBe(1);
+    expect(notesRefs[0].dir).toBe('notes');
+    // A dir outside DIR_PATTERN still must not match.
+    expect(extractEntityRefs('See [x](random-garbage/thing).')).toEqual([]);
   });
 
   test('extracts meeting refs', () => {
