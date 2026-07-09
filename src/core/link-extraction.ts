@@ -82,8 +82,14 @@ export type LinkResolutionType = 'qualified' | 'unqualified';
  *   - Gbrain canonical: people, companies, meetings, concepts, deal, civic, project, source, media, yc, projects
  *   - Our domain extensions: tech, finance, personal, openclaw (domain-organized wikis)
  *   - Our entity prefix: entities (we kept some legacy entities/projects/ pages)
+ *   - Sagebeam brain taxonomy (fork): `person` (SINGULAR — the actual person/
+ *     slug convention used by outreach-engine projections AND event-debrief
+ *     contact pages; with only `people` here, every `[[person/x]]` wikilink was
+ *     silently dropped, which orphaned all event-sourced contacts). Plus deals,
+ *     sources, writing, strategy, product, notes, org, programs, ideas,
+ *     household, prompts, daily. Keep in sync with the Master Resolver taxonomy.
  */
-const DIR_PATTERN = '(?:people|companies|meetings|concepts|deal|civic|project|projects|source|media|yc|tech|finance|personal|openclaw|entities)';
+const DIR_PATTERN = '(?:people|person|companies|meetings|concepts|deal|deals|civic|project|projects|source|sources|media|yc|tech|finance|personal|openclaw|entities|writing|strategy|product|notes|org|programs|ideas|household|prompts|daily)';
 
 /**
  * Match `[Name](path)` markdown links pointing to entity directories.
